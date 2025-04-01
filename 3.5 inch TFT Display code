@@ -1,0 +1,197 @@
+//This code if for the tft 3.5 inch led display compatible with Arduino mega or an Arduino uno 
+// below code displays the a speed dial and a heart rate graph 
+// INSTALL NODE MCU FRIEND library for this code to run 
+
+
+#include <UTFTGLUE.h>
+
+// Initialize the display (use appropriate pin numbers for Arduino Mega)
+UTFTGLUE myGLCD(38, 39, 40, 41, 42, 43);
+
+// Constants
+#define TOUCH_PIN 30
+#define SPEED_SENSOR_PIN 31
+#define SCREEN_WIDTH 480
+#define SCREEN_HEIGHT 320
+#define CENTER_X (SCREEN_WIDTH / 2)
+#define CENTER_Y (SCREEN_HEIGHT / 2)
+#define SPEEDOMETER_RADIUS 120
+#define NEEDLE_LENGTH 100
+#define MAX_SPEED 40
+#define SAMPLE_INTERVAL 50
+#define GRAPH_WIDTH 480
+#define GRAPH_HEIGHT 100
+#define FONT_WIDTH 48
+#define FONT_HEIGHT 64
+
+// State Constants
+enum DisplayState { STATE_IDLE, STATE_START, STATE_PULSE_GRAPH, STATE_SPEEDOMETER };
+DisplayState currentState = STATE_IDLE;
+
+// Variables
+volatile unsigned long pulseCount = 0;
+unsigned long lastMillis = 0;
+unsigned long stateChangeTime = 0;
+float wheelCircumference = 2.2;
+float currentSpeed = 0.0;
+int pulseData[GRAPH_WIDTH];
+int prevX = 0;
+int prevY = 0;
+int prevNeedleX = CENTER_X;
+int prevNeedleY = CENTER_Y;
+bool touchActive = false;
+
+void setup() {
+  pinMode(TOUCH_PIN, INPUT);
+  pinMode(SPEED_SENSOR_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(SPEED_SENSOR_PIN), countPulse, RISING);
+  myGLCD.InitLCD();
+  myGLCD.setFont(BigFont);
+  myGLCD.setColor(255, 255, 255);
+  myGLCD.fillRect(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+  for (int i = 0; i < GRAPH_WIDTH; i++) {
+    pulseData[i] = 0;
+  }
+}
+
+void loop() {
+  if (digitalRead(TOUCH_PIN) == HIGH && currentState == STATE_IDLE) {
+    touchActive = true;
+    currentState = STATE_START;
+    stateChangeTime = millis();
+    displayStartMessage();
+  }
+
+  switch (currentState) {
+    case STATE_START:
+      if (millis() - stateChangeTime > 5000) {
+        currentState = STATE_PULSE_GRAPH;
+        stateChangeTime = millis();
+        clearScreen();
+      }
+      break;
+
+    case STATE_PULSE_GRAPH:
+      if (millis() - stateChangeTime > 5000) {
+        currentState = STATE_SPEEDOMETER;
+        stateChangeTime = millis();
+        clearScreen();
+      } else {
+        updatePulseData();
+        drawPulseGraph();
+      }
+      break;
+
+    case STATE_SPEEDOMETER:
+      if (millis() - stateChangeTime > 5000) {
+        currentState = STATE_PULSE_GRAPH;
+        stateChangeTime = millis();
+        clearScreen();
+      } else {
+        updateSpeedometer();
+      }
+      break;
+
+    default:
+      break;
+  }
+
+  delay(SAMPLE_INTERVAL);
+}
+
+void countPulse() {
+  pulseCount++;
+}
+
+float calculateSpeed(unsigned long pulses) {
+  return (pulses * wheelCircumference) / 1.0;
+}
+
+void displayStartMessage() {
+  clearScreen();
+  myGLCD.setColor(0, 0, 0);
+  myGLCD.setBackColor(255, 255, 255);
+  String message = "START";
+  int textWidth = message.length() * FONT_WIDTH;
+  int textHeight = FONT_HEIGHT;
+  int x = (SCREEN_WIDTH - textWidth) / 2;
+  int y = (SCREEN_HEIGHT - textHeight) / 2;
+  myGLCD.print(message.c_str(), x, y);
+}
+
+void clearScreen() {
+  myGLCD.setColor(255, 255, 255);
+  myGLCD.fillRect(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+}
+
+void updatePulseData() {
+  for (int i = 0; i < GRAPH_WIDTH - 1; i++) {
+    pulseData[i] = pulseData[i + 1];
+  }
+  pulseData[GRAPH_WIDTH - 1] = random(0, 5 * 1000) / 1000.0;
+}
+
+void drawPulseGraph() {
+  myGLCD.setColor(255, 255, 255);
+  myGLCD.fillRect(0, SCREEN_HEIGHT - GRAPH_HEIGHT, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+  myGLCD.setColor(0, 0, 255);
+  for (int x = 0; x < GRAPH_WIDTH; x++) {
+    int y = map(pulseData[x], 0, 5, SCREEN_HEIGHT - GRAPH_HEIGHT, SCREEN_HEIGHT - 1);
+    if (x > 0) {
+      myGLCD.drawLine(prevX, prevY, x, y);
+    }
+    prevX = x;
+    prevY = y;
+  }
+  myGLCD.setColor(0, 0, 0);
+  myGLCD.drawLine(0, SCREEN_HEIGHT - GRAPH_HEIGHT, SCREEN_WIDTH - 1, SCREEN_HEIGHT - GRAPH_HEIGHT);
+  myGLCD.drawLine(0, SCREEN_HEIGHT - GRAPH_HEIGHT, 0, SCREEN_HEIGHT - 1);
+}
+
+void updateSpeedometer() {
+  if (millis() - lastMillis >= 1000) {
+    currentSpeed = calculateSpeed(pulseCount);
+    pulseCount = 0;
+    lastMillis = millis();
+
+    drawSpeedometer();
+    drawSpeedValue(currentSpeed);
+    clearNeedle(prevNeedleX, prevNeedleY);
+    drawNeedle(currentSpeed);
+  }
+}
+
+void drawSpeedometer() {
+  myGLCD.setColor(0, 0, 0);
+  myGLCD.drawCircle(CENTER_X, CENTER_Y, SPEEDOMETER_RADIUS);
+  for (int i = 0; i <= MAX_SPEED; i += 5) {
+    float angle = map(i, 0, MAX_SPEED, 180, 0) * 3.14159 / 180.0;
+    int x1 = CENTER_X + cos(angle) * (SPEEDOMETER_RADIUS - 10);
+    int y1 = CENTER_Y - sin(angle) * (SPEEDOMETER_RADIUS - 10);
+    int x2 = CENTER_X + cos(angle) * SPEEDOMETER_RADIUS;
+    int y2 = CENTER_Y - sin(angle) * SPEEDOMETER_RADIUS;
+    myGLCD.drawLine(x1, y1, x2, y2);
+  }
+}
+
+void drawSpeedValue(float speed) {
+  String speedText = String(speed, 1) + " m/s";
+  myGLCD.setColor(0, 0, 0);
+  myGLCD.setBackColor(255, 255, 255);
+  myGLCD.print(speedText.c_str(), CENTER_X - 30, CENTER_Y + 50);
+}
+
+void drawNeedle(float speed) {
+  float angle = map(speed, 0, MAX_SPEED, 180, 0) * 3.14159 / 180.0;
+  int xEnd = CENTER_X + cos(angle) * NEEDLE_LENGTH;
+  int yEnd = CENTER_Y - sin(angle) * NEEDLE_LENGTH;
+  myGLCD.setColor(255, 0, 0);
+  myGLCD.drawLine(CENTER_X, CENTER_Y, xEnd, yEnd);
+  prevNeedleX = xEnd;
+  prevNeedleY = yEnd;
+}
+
+void clearNeedle(int prevX, int prevY) {
+  myGLCD.setColor(255, 255, 255);
+  myGLCD.drawLine(CENTER_X, CENTER_Y, prevX, prevY);
+}
