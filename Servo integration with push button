@@ -1,0 +1,149 @@
+// This code is for the positioning of servos in the robotic steering wheel .
+// An Arduino mega was used to include the various pins involved .
+
+
+
+
+#include <Servo.h> // Include Servo library for Arduino Mega compatibility
+
+// Create 12 servo objects
+Servo servos[12];
+
+// Define the pins for the servos (12 servos)
+int servoPins[12] = {22,23,24,25,26,27,28,29,30,31,32,33}; // Servo control pins
+
+// Define push button pins
+const int buttonPins[6] = {34,35,36,37,38,39}; // Button pins for 6 cases
+
+// Variables for button states
+bool buttonStates[6] = {HIGH, HIGH, HIGH, HIGH, HIGH, HIGH};      // Current states
+bool lastButtonStates[6] = {HIGH, HIGH, HIGH, HIGH, HIGH, HIGH};  // Previous states
+
+// Variables to track the current and previous case
+int currentCase = -1; // No case selected initially
+int previousCase = -1;
+
+void setup() {
+  // Attach each servo to its corresponding pin
+  for (int i = 0; i < 12; i++) {
+    servos[i].attach(servoPins[i]); // Attach servos to pins
+  }
+
+  // Set button pins as inputs with pull-up resistors
+  for (int i = 0; i < 6; i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
+
+  // Start serial communication
+  Serial.begin(9600);
+  Serial.println("Arduino Mega Servo Control with 6 Push Buttons Initialized.");
+
+  // Set initial positions for servos 9-12
+  servos[8].write(30);
+  servos[9].write(0);
+  servos[10].write(0);
+  servos[11].write(30);
+
+}
+
+void loop() {
+  // Check each button for input
+  for (int i = 0; i < 6; i++) {
+    buttonStates[i] = digitalRead(buttonPins[i]);
+
+    // Detect button press (falling edge detection)
+    if (buttonStates[i] == LOW && lastButtonStates[i] == HIGH) {
+      currentCase = i + 1; // Set the current case (1 to 6)
+    }
+
+    // Update previous button state
+    lastButtonStates[i] = buttonStates[i];
+  }
+
+  // Execute the selected case only if it has changed
+  if (currentCase != previousCase) {
+    switch (currentCase) {
+      case 1: moveServosCase1(); break;
+      case 2: moveServosCase2(); break;
+      case 3: moveServosCase3(); break;
+      case 4: moveServosCase4(); break;
+      case 5: moveServosCase5(); break;
+      case 6: moveServosCase6(); break;
+      default: Serial.println("No valid case selected."); break;
+    }
+    previousCase = currentCase; // Update the previous case
+  }
+
+  delay(50); // Small debounce delay
+}
+
+// Function for performing movements for case 1
+void moveServosCase1() {
+  servos[0].write(0);
+  servos[1].write(30);
+  servos[2].write(0);
+  servos[3].write(30);
+  servos[4].write(30);
+  servos[5].write(0);
+  servos[6].write(30);
+  servos[7].write(0);
+  Serial.println("Case 1 activated: Servos set to specific angles.");
+}
+
+// Function for performing movements for case 2
+void moveServosCase2() {
+  servos[0].write(10);
+  servos[1].write(20);
+  servos[2].write(10);
+  servos[3].write(20);
+  servos[4].write(20);
+  servos[5].write(10);
+  servos[6].write(20);
+  servos[7].write(10);
+  Serial.println("Case 2 activated: Servos set to specific angles.");
+}
+
+// Function for performing movements for case 3
+void moveServosCase3() {
+  servos[0].write(20);
+  servos[1].write(10);
+  servos[2].write(20);
+  servos[3].write(10);
+  servos[4].write(10);
+  servos[5].write(20);
+  servos[6].write(10);
+  servos[7].write(20);
+  Serial.println("Case 3 activated: Servos set to specific angles.");
+}
+
+// Function for performing movements for case 4
+void moveServosCase4() {
+  servos[0].write(30);
+  servos[1].write(0);
+  servos[2].write(30);
+  servos[3].write(0);
+  servos[4].write(0);
+  servos[5].write(30);
+  servos[6].write(0);
+  servos[7].write(30);
+  Serial.println("Case 4 activated: Servos set to specific angles.");
+}
+
+// Function for performing movements for case 5
+void moveServosCase5() {
+  servos[8].write(30);
+  servos[9].write(0);
+  servos[10].write(0);
+  servos[11].write(30);
+  Serial.println("Case 5 activated: Servos set to specific angles.");
+}
+
+
+// Function for performing movements for case 6
+void moveServosCase6() {
+  servos[8].write(0);
+  servos[9].write(30);
+  servos[10].write(30);  
+  servos[11].write(0);
+  Serial.println("Case 6 activated: Servos set to specific angles.");
+}
